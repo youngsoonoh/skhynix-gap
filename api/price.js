@@ -4,19 +4,19 @@ export default async function handler(req, res) {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     };
 
-    // 1. 하이닉스 KRX - 이건 기존 셀렉터 됨
+    // 1. 하이닉스 KRX
     const krHtml = await fetch('https://finance.naver.com/item/main.naver?code=000660', { headers }).then(r => r.text());
     const krPrice = parseInt(krHtml.match(/<em class="no_today">.*?(\d{1,3}(,\d{3})*)<\/em>/)?.[1]?.replace(/,/g, ''));
 
-    // 2. 하이닉스 ADR - JSON에서 추출
+    // 2. 하이닉스 ADR
     const adrHtml = await fetch('https://stock.naver.com/worldstock/stock/SKHYV.O/price', { headers }).then(r => r.text());
     const adrMatch = adrHtml.match(/"closePrice":"([\d.]+)"/);
     const adrPrice = parseFloat(adrMatch?.[1]);
 
-    // 3. 환율 - JSON API 직접 호출
-    const fxRes = await fetch('https://m.stock.naver.com/api/marketindex/exchange/FX_USDKRW', { headers });
-    const fxData = await fxRes.json();
-    const usdKrw = parseFloat(fxData.exchangeInfo.dealPrice);
+    // 3. 환율 - 네이버 금융 메인에서 긁어오기
+    const fxHtml = await fetch('https://finance.naver.com/marketindex/', { headers }).then(r => r.text());
+    const fxMatch = fxHtml.match(/USD\/KRW<\/span>[\s\S]*?<span class="value">([\d,.]+)<\/span>/);
+    const usdKrw = parseFloat(fxMatch?.[1]?.replace(/,/g, ''));
 
     if (!krPrice ||!adrPrice ||!usdKrw) {
       throw new Error(`Parsing failed. kr:${krPrice}, adr:${adrPrice}, fx:${usdKrw}`);
