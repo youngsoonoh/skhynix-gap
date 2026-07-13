@@ -16,4 +16,26 @@ export default async function handler(req, res) {
     // 3. 환율 - JSON API 직접 호출
     const fxRes = await fetch('https://m.stock.naver.com/api/marketindex/exchange/FX_USDKRW', { headers });
     const fxData = await fxRes.json();
-    const usdKrw = parseFloat(fxData.exchangeInfo.deal
+    const usdKrw = parseFloat(fxData.exchangeInfo.dealPrice);
+
+    if (!krPrice ||!adrPrice ||!usdKrw) {
+      throw new Error(`Parsing failed. kr:${krPrice}, adr:${adrPrice}, fx:${usdKrw}`);
+    }
+    
+    const adrRatio = 10;
+    const adrKRW = adrPrice * usdKrw / adrRatio;
+    const gap = ((adrKRW - krPrice) / krPrice * 100).toFixed(2);
+
+    res.status(200).json({
+      krPrice, market: 'KRX', adrPrice: adrPrice.toFixed(2),
+      usdKrw: usdKrw.toFixed(2), adrKRW: Math.round(adrKRW),
+      gap, adrRatio: '10:1', updatedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Failed to fetch data', 
+      detail: error.message 
+    });
+  }
+}
