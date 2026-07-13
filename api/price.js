@@ -2,35 +2,27 @@ import * as cheerio from 'cheerio';
 
 export default async function handler(req, res) {
   try {
-    // 1. 하이닉스 한국 주가 - 네이버 금융
-    const krRes = await fetch('https://finance.naver.com/item/main.naver?code=000660', {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    const krHtml = await krRes.text();
+    const headers = { 'User-Agent': 'Mozilla/5.0' };
+
+    // 1. 하이닉스 KRX
+    const krHtml = await fetch('https://finance.naver.com/item/main.naver?code=000660', { headers }).then(r => r.text());
     const $kr = cheerio.load(krHtml);
     const krPrice = parseInt($kr('.no_today .blind').first().text().replace(/,/g, ''));
 
     // 2. 하이닉스 ADR - 네가 준 주소
-    const adrRes = await fetch('https://stock.naver.com/worldstock/stock/SKHYV.O/price', {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    const adrHtml = await adrRes.text();
+    const adrHtml = await fetch('https://stock.naver.com/worldstock/stock/SKHYV.O/price', { headers }).then(r => r.text());
     const $adr = cheerio.load(adrHtml);
-    // 네이버 세계주식은 .now_price .num 이 현재가
     const adrPrice = parseFloat($adr('.now_price .num').text().replace(/,/g, ''));
 
-    // 3. 환율 USD/KRW - 네이버 시장지표
-    const fxRes = await fetch('https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_USDKRW', {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    const fxHtml = await fxRes.text();
+    // 3. 환율
+    const fxHtml = await fetch('https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_USDKRW', { headers }).then(r => r.text());
     const $fx = cheerio.load(fxHtml);
     const usdKrw = parseFloat($fx('.tbl_exchange .blind').first().text().replace(/,/g, ''));
 
-    // 4. 계산
     if (!krPrice || !adrPrice || !usdKrw) throw new Error('Parsing failed');
     
-    const adrRatio = 10; // ADR 1주 = 원주 10주
+    // 4. 계산
+    const adrRatio = 10;
     const adrKRW = adrPrice * usdKrw / adrRatio;
     const gap = ((adrKRW - krPrice) / krPrice * 100).toFixed(2);
 
