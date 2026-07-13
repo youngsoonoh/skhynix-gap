@@ -5,69 +5,67 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SK하이닉스 ADR 괴리율</title>
   <style>
-    body { font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 20px; background: #f5f5f7; }
-   .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-   .row { display: flex; justify-content: space-between; margin: 12px 0; }
-   .label { color: #666; }
-   .value { font-weight: 600; }
-   .badge { background: #007aff; color: white; padding: 2px 8px; border-radius: 6px; font-size: 12px; }
-   .gap { font-size: 32px; font-weight: 700; text-align: center; margin: 20px 0; }
-   .plus { color: #ff3b30; }
-   .minus { color: #007aff; }
-    button { width: 100%; padding: 14px; background: #007aff; color: white; border: none; border-radius: 12px; font-size: 16px; }
-   .time { text-align: center; color: #999; font-size: 13px; margin-top: 12px; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .card { 
+      background: white; border-radius: 24px; padding: 32px; 
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 400px; width: 100%;
+    }
+    h1 { font-size: 20px; margin-bottom: 24px; text-align: center; }
+    .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+    .label { color: #666; font-size: 14px; }
+    .value { font-weight: 600; font-size: 15px; }
+    .gap { font-size: 48px; font-weight: 700; text-align: center; margin: 24px 0; }
+    .plus { color: #ff3b30; }
+    .minus { color: #007aff; }
+    .badge { background: #007aff; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+    .time { text-align: center; color: #999; font-size: 12px; margin-top: 16px; }
+    .loading { text-align: center; color: #999; padding: 40px 0; }
   </style>
 </head>
 <body>
-  <h2>SK하이닉스 ADR 괴리율</h2>
   <div class="card">
-    <div class="row">
-      <span class="label">한국 주가 <span id="market" class="badge">KRX</span></span>
-      <span class="value" id="krPrice">-</span>
-    </div>
-    <div class="row">
-      <span class="label">ADR 가격</span>
-      <span class="value" id="adrPrice">-</span>
-    </div>
-    <div class="row">
-      <span class="label">환율 USD/KRW</span>
-      <span class="value" id="usdKrw">-</span>
-    </div>
-    <div class="row">
-      <span class="label">ADR 환산가</span>
-      <span class="value" id="adrKRW">-</span>
-    </div>
-    <div class="gap" id="gap">-</div>
-    <div style="text-align:center; font-size:13px; color:#999;">ADR 10주 = 보통주 1주</div>
+    <h1>SK하이닉스 ADR 괴리율</h1>
+    <div id="content" class="loading">로딩중...</div>
   </div>
-  <button onclick="load()">새로고침</button>
-  <div class="time" id="time"></div>
-
   <script>
     async function load() {
-      document.getElementById('gap').textContent = '불러오는 중...';
       try {
         const res = await fetch('/api/price');
         const d = await res.json();
-
-        document.getElementById('market').textContent = d.market;
-        document.getElementById('krPrice').textContent = d.krPrice.toLocaleString() + '원';
-        document.getElementById('adrPrice').textContent = '$' + d.adrPrice.toFixed(2);
-        document.getElementById('usdKrw').textContent = d.usdKrw.toFixed(2);
-        document.getElementById('adrKRW').textContent = d.adrKRW.toLocaleString() + '원';
-
-        const gapEl = document.getElementById('gap');
-        gapEl.textContent = d.gap + '%';
-        gapEl.className = 'gap ' + (d.gap > 0? 'plus' : 'minus');
-
-        document.getElementById('time').textContent =
-          '업데이트: ' + new Date(d.updatedAt).toLocaleString('ko-KR');
-      } catch (e) {
-        document.getElementById('gap').textContent = '에러 발생';
+        const gapClass = parseFloat(d.gap) > 0 ? 'plus' : 'minus';
+        const gapSign = parseFloat(d.gap) > 0 ? '+' : '';
+        
+        document.getElementById('content').innerHTML = `
+          <div class="row">
+            <span class="label">KRX 주가</span>
+            <span class="value">${d.krPrice.toLocaleString()}원</span>
+          </div>
+          <div class="row">
+            <span class="label">ADR</span>
+            <span class="value">$${d.adrPrice} <span class="badge">${d.adrRatio}</span></span>
+          </div>
+          <div class="row">
+            <span class="label">ADR 원화환산</span>
+            <span class="value">${Math.round(d.adrKRW).toLocaleString()}원</span>
+          </div>
+          <div class="row">
+            <span class="label">USD/KRW</span>
+            <span class="value">${d.usdKrw}</span>
+          </div>
+          <div class="gap ${gapClass}">${gapSign}${d.gap}%</div>
+          <div class="time">업데이트: ${new Date(d.updatedAt).toLocaleString('ko-KR')}</div>
+        `;
+      } catch(e) {
+        document.getElementById('content').innerHTML = '<div class="loading">데이터 로드 실패 😢</div>';
       }
     }
     load();
-    setInterval(load, 60000); // 1분마다
+    setInterval(load, 60000);
   </script>
 </body>
 </html>
