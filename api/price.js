@@ -1,33 +1,41 @@
+import * as cheerio from 'cheerio';
+
 export default async function handler(req, res) {
   try {
-    // 1. 하이닉스 한국 주가 - 000660.KS
-    const krRes = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/000660.KS?interval=1d&range=1d');
-    const krData = await krRes.json();
-    
-    if (!krData.chart?.result?.[0]) throw new Error('KR stock data null');
-    const krPrice = krData.chart.result[0].meta.regularMarketPrice;
+    // 1. 하이닉스 한국 주가 - 네이버 금융
+    const krRes = await fetch('https://finance.naver.com/item/main.naver?code=000660', {
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    const krHtml = await krRes.text();
+    const $kr = cheerio.load(krHtml);
+    const krPrice = parseInt($kr('.no_today .blind').first().text().replace(/,/g, ''));
 
-    // 2. 하이닉스 ADR - HXSCL 쓰자. 안되면 하드코딩
-    const adrRes = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/HXSCL?interval=1d&range=1d');
-    const adrData = await adrRes.json();
-    
-    if (!adrData.chart?.result?.[0]) throw new Error('ADR data null - Yahoo blocked');
-    const adrPrice = adrData.chart.result[0].meta.regularMarketPrice;
+    // 2. 하이닉스 ADR - 네가 준 주소
+    const adrRes = await fetch('https://stock.naver.com/worldstock/stock/SKHYV.O/price', {
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    const adrHtml = await adrRes.text();
+    const $adr = cheerio.load(adrHtml);
+    // 네이버 세계주식은 .now_price .num 이 현재가
+    const adrPrice = parseFloat($adr('.now_price .num').text().replace(/,/g, ''));
 
-    // 3. 환율 USD/KRW
-    const fxRes = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/USDKRW=X?interval=1d&range=1d');
-    const fxData = await fxRes.json();
-    
-    if (!fxData.chart?.result?.[0]) throw new Error('FX data null');
-    const usdKrw = fxData.chart.result[0].meta.regularMarketPrice;
+    // 3. 환율 USD/KRW - 네이버 시장지표
+    const fxRes = await fetch('https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_USDKRW', {
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    const fxHtml = await fxRes.text();
+    const $fx = cheerio.load(fxHtml);
+    const usdKrw = parseFloat($fx('.tbl_exchange .blind').first().text().replace(/,/g, ''));
 
     // 4. 계산
-    const adrRatio = 10;
+    if (!krPrice || !adrPrice || !usdKrw) throw new Error('Parsing failed');
+    
+    const adrRatio = 10; // ADR 1주 = 원주 10주
     const adrKRW = adrPrice * usdKrw / adrRatio;
     const gap = ((adrKRW - krPrice) / krPrice * 100).toFixed(2);
 
     res.status(200).json({
-      krPrice: Math.round(krPrice),
+      krPrice,
       market: 'KRX',
       adrPrice: adrPrice.toFixed(2),
       usdKrw: usdKrw.toFixed(2),
